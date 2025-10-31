@@ -2,86 +2,184 @@ const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const path = require('path');
+const mongoose = require('mongoose');
+require('dotenv').config();
+
+const { Task, Note, Event } = require('./models');
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
+// Middleware
 app.use(cors());
 app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-let tasks = [
-  { id: '1', title: 'Welcome to FRI2PLAN', status: 'pending', dueDate: new Date().toISOString().split('T')[0] }
-];
+// Connexion MongoDB
+mongoose.connect(process.env.MONGODB_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true
+})
+.then(() => console.log('✅ MongoDB Connected!'))
+.catch(err => console.error('❌ MongoDB Error:', err));
 
-let notes = [
-  { id: '1', title: 'Welcome to FRI2PLAN', content: 'Start taking notes here!' }
-];
+// ============ TASKS ENDPOINTS ============
 
-let events = [
-  { id: '1', title: 'Project Kickoff', description: 'Start of FRI2PLAN project', startDate: new Date().toISOString().split('T')[0], endDate: new Date().toISOString().split('T')[0] }
-];
-
-app.get('/api/tasks', (req, res) => res.json(tasks));
-app.post('/api/tasks', (req, res) => {
-  const { title } = req.body;
-  if (!title) return res.status(400).json({ error: 'Title required' });
-  const newTask = { id: Date.now().toString(), title, status: 'pending', dueDate: new Date().toISOString().split('T')[0] };
-  tasks.push(newTask);
-  res.status(201).json(newTask);
-});
-app.put('/api/tasks/:id', (req, res) => {
-  const task = tasks.find(t => t.id === req.params.id);
-  if (!task) return res.status(404).json({ error: 'Not found' });
-  if (req.body.title) task.title = req.body.title;
-  if (req.body.status) task.status = req.body.status;
-  res.json(task);
-});
-app.delete('/api/tasks/:id', (req, res) => {
-  tasks = tasks.filter(t => t.id !== req.params.id);
-  res.json({ success: true });
+app.get('/api/tasks', async (req, res) => {
+  try {
+    const tasks = await Task.find();
+    res.json(tasks);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
-app.get('/api/notes', (req, res) => res.json(notes));
-app.post('/api/notes', (req, res) => {
-  const { title, content } = req.body;
-  if (!title) return res.status(400).json({ error: 'Title required' });
-  const newNote = { id: Date.now().toString(), title, content: content || '' };
-  notes.push(newNote);
-  res.status(201).json(newNote);
-});
-app.put('/api/notes/:id', (req, res) => {
-  const note = notes.find(n => n.id === req.params.id);
-  if (!note) return res.status(404).json({ error: 'Not found' });
-  if (req.body.title) note.title = req.body.title;
-  if (req.body.content !== undefined) note.content = req.body.content;
-  res.json(note);
-});
-app.delete('/api/notes/:id', (req, res) => {
-  notes = notes.filter(n => n.id !== req.params.id);
-  res.json({ success: true });
+app.post('/api/tasks', async (req, res) => {
+  try {
+    const { title } = req.body;
+    if (!title) return res.status(400).json({ error: 'Title required' });
+    
+    const newTask = new Task({
+      title,
+      status: 'pending',
+      dueDate: new Date().toISOString().split('T')[0]
+    });
+    
+    await newTask.save();
+    res.status(201).json(newTask);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
-app.get('/api/events', (req, res) => res.json(events));
-app.post('/api/events', (req, res) => {
-  const { title, description, startDate, endDate } = req.body;
-  if (!title) return res.status(400).json({ error: 'Title required' });
-  const newEvent = { id: Date.now().toString(), title, description: description || '', startDate: startDate || new Date().toISOString().split('T')[0], endDate: endDate || new Date().toISOString().split('T')[0] };
-  events.push(newEvent);
-  res.status(201).json(newEvent);
+app.put('/api/tasks/:id', async (req, res) => {
+  try {
+    const { title, status } = req.body;
+    const task = await Task.findByIdAndUpdate(
+      req.params.id,
+      { title, status },
+      { new: true }
+    );
+    if (!task) return res.status(404).json({ error: 'Not found' });
+    res.json(task);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
-app.put('/api/events/:id', (req, res) => {
-  const event = events.find(e => e.id === req.params.id);
-  if (!event) return res.status(404).json({ error: 'Not found' });
-  if (req.body.title) event.title = req.body.title;
-  if (req.body.description !== undefined) event.description = req.body.description;
-  if (req.body.startDate) event.startDate = req.body.startDate;
-  if (req.body.endDate) event.endDate = req.body.endDate;
-  res.json(event);
+
+app.delete('/api/tasks/:id', async (req, res) => {
+  try {
+    await Task.findByIdAndDelete(req.params.id);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
-app.delete('/api/events/:id', (req, res) => {
-  events = events.filter(e => e.id !== req.params.id);
-  res.json({ success: true });
+
+// ============ NOTES ENDPOINTS ============
+
+app.get('/api/notes', async (req, res) => {
+  try {
+    const notes = await Note.find();
+    res.json(notes);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/notes', async (req, res) => {
+  try {
+    const { title, content } = req.body;
+    if (!title) return res.status(400).json({ error: 'Title required' });
+    
+    const newNote = new Note({
+      title,
+      content: content || ''
+    });
+    
+    await newNote.save();
+    res.status(201).json(newNote);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/notes/:id', async (req, res) => {
+  try {
+    const { title, content } = req.body;
+    const note = await Note.findByIdAndUpdate(
+      req.params.id,
+      { title, content },
+      { new: true }
+    );
+    if (!note) return res.status(404).json({ error: 'Not found' });
+    res.json(note);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/notes/:id', async (req, res) => {
+  try {
+    await Note.findByIdAndDelete(req.params.id);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============ EVENTS ENDPOINTS ============
+
+app.get('/api/events', async (req, res) => {
+  try {
+    const events = await Event.find();
+    res.json(events);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/events', async (req, res) => {
+  try {
+    const { title, description, startDate, endDate } = req.body;
+    if (!title) return res.status(400).json({ error: 'Title required' });
+    
+    const newEvent = new Event({
+      title,
+      description: description || '',
+      startDate: startDate || new Date().toISOString().split('T')[0],
+      endDate: endDate || new Date().toISOString().split('T')[0]
+    });
+    
+    await newEvent.save();
+    res.status(201).json(newEvent);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/events/:id', async (req, res) => {
+  try {
+    const { title, description, startDate, endDate } = req.body;
+    const event = await Event.findByIdAndUpdate(
+      req.params.id,
+      { title, description, startDate, endDate },
+      { new: true }
+    );
+    if (!event) return res.status(404).json({ error: 'Not found' });
+    res.json(event);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/events/:id', async (req, res) => {
+  try {
+    await Event.findByIdAndDelete(req.params.id);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 app.listen(PORT, () => {
