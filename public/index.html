@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FRI2PLAN - Task Manager</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        header { text-align: center; color: white; margin-bottom: 40px; }
+        header h1 { font-size: 2.5em; margin-bottom: 10px; }
+        header p { font-size: 1.1em; opacity: 0.9; }
+        .tabs { display: flex; gap: 10px; margin-bottom: 30px; flex-wrap: wrap; justify-content: center; }
+        .tab-btn { padding: 12px 24px; border: none; border-radius: 8px; background: rgba(255, 255, 255, 0.2); color: white; cursor: pointer; font-size: 1em; font-weight: 600; transition: all 0.3s ease; }
+        .tab-btn:hover { background: rgba(255, 255, 255, 0.3); transform: translateY(-2px); }
+        .tab-btn.active { background: white; color: #667eea; }
+        .tab-content { display: none; background: white; border-radius: 12px; padding: 30px; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2); }
+        .tab-content.active { display: block; }
+        .tab-content h2 { margin-bottom: 20px; color: #333; font-size: 1.8em; }
+        .input-group { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+        input[type="text"], textarea { flex: 1; min-width: 200px; padding: 12px; border: 2px solid #ddd; border-radius: 8px; font-size: 1em; font-family: inherit; transition: border-color 0.3s; }
+        input[type="text"]:focus, textarea:focus { outline: none; border-color: #667eea; }
+        textarea { min-height: 80px; resize: vertical; }
+        button { padding: 12px 24px; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 1em; font-weight: 600; transition: all 0.3s ease; }
+        button:hover { background: #764ba2; transform: translateY(-2px); }
+        .item { background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 12px; border-left: 4px solid #667eea; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+        .item-content { flex: 1; min-width: 200px; }
+        .item-title { font-weight: 600; color: #333; margin-bottom: 5px; font-size: 1.1em; }
+        .item-meta { font-size: 0.9em; color: #666; }
+        .item-actions { display: flex; gap: 8px; }
+        .btn-small { padding: 8px 12px; font-size: 0.9em; border: none; border-radius: 6px; cursor: pointer; transition: all 0.3s; }
+        .btn-delete { background: #f44336; color: white; }
+        .btn-delete:hover { background: #da190b; }
+        .btn-check { background: #4caf50; color: white; }
+        .empty-state { text-align: center; padding: 40px; color: #999; }
+        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-top: 20px; padding-top: 20px; border-top: 2px solid #eee; }
+        .stat { text-align: center; padding: 15px; background: #f8f9fa; border-radius: 8px; }
+        .stat-number { font-size: 2em; font-weight: bold; color: #667eea; }
+        .stat-label { color: #666; font-size: 0.9em; margin-top: 5px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📋 FRI2PLAN</h1>
+            <p>Your Personal Task & Event Manager</p>
+        </header>
+
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('tasks')">📋 Tasks</button>
+            <button class="tab-btn" onclick="switchTab('notes')">📝 Notes</button>
+            <button class="tab-btn" onclick="switchTab('events')">📅 Events</button>
+        </div>
+
+        <div id="tasks" class="tab-content active">
+            <h2>📋 My Tasks</h2>
+            <div class="input-group">
+                <input type="text" id="taskInput" placeholder="Add a new task...">
+                <button onclick="addTask()">Add Task</button>
+            </div>
+            <div id="tasksList"></div>
+            <div id="tasksStats" class="stats"></div>
+        </div>
+
+        <div id="notes" class="tab-content">
+            <h2>📝 My Notes</h2>
+            <div class="input-group">
+                <input type="text" id="noteTitle" placeholder="Note title...">
+            </div>
+            <div class="input-group">
+                <textarea id="noteContent" placeholder="Note content..."></textarea>
+            </div>
+            <button onclick="addNote()" style="width: 100%;">Add Note</button>
+            <div id="notesList" style="margin-top: 20px;"></div>
+            <div id="notesStats" class="stats"></div>
+        </div>
+
+        <div id="events" class="tab-content">
+            <h2>📅 My Events</h2>
+            <div class="input-group">
+                <input type="text" id="eventInput" placeholder="Event title...">
+                <button onclick="addEvent()">Add Event</button>
+            </div>
+            <div id="eventsList"></div>
+            <div id="eventsStats" class="stats"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:3000/api';
+
+        function switchTab(tab ) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+            document.getElementById(tab).classList.add('active');
+            event.target.classList.add('active');
+            if (tab === 'tasks') loadTasks();
+            if (tab === 'notes') loadNotes();
+            if (tab === 'events') loadEvents();
+        }
+
+        async function loadTasks() {
+            try {
+                const res = await fetch(`${API_URL}/tasks`);
+                const tasks = await res.json();
+                const tasksList = document.getElementById('tasksList');
+                const tasksStats = document.getElementById('tasksStats');
+                if (tasks.length === 0) {
+                    tasksList.innerHTML = '<div class="empty-state">No tasks yet!</div>';
+                    tasksStats.innerHTML = '';
+                    return;
+                }
+                tasksList.innerHTML = tasks.map(task => `
+                    <div class="item">
+                        <div class="item-content">
+                            <div class="item-title">${task.title}</div>
+                            <div class="item-meta">Due: ${task.dueDate}</div>
+                        </div>
+                        <div class="item-actions">
+                            <button class="btn-small btn-check" onclick="toggleTask('${task.id}')">✓ Done</button>
+                            <button class="btn-small btn-delete" onclick="deleteTask('${task.id}')">🗑️ Delete</button>
+                        </div>
+                    </div>
+                `).join('');
+                const completed = tasks.filter(t => t.status === 'completed').length;
+                tasksStats.innerHTML = `
+                    <div class="stat">
+                        <div class="stat-number">${tasks.length}</div>
+                        <div class="stat-label">Total Tasks</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-number">${completed}</div>
+                        <div class="stat-label">Completed</div>
+                    </div>
+                `;
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('tasksList').innerHTML = '<div class="empty-state">Error loading tasks</div>';
+            }
+        }
+
+        async function addTask() {
+            const input = document.getElementById('taskInput');
+            if (!input.value.trim()) return;
+            try {
+                await fetch(`${API_URL}/tasks`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title: input.value })
+                });
+                input.value = '';
+                loadTasks();
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        async function toggleTask(id) {
+            try {
+                const res = await fetch(`${API_URL}/tasks`);
+                const tasks = await res.json();
+                const task = tasks.find(t => t.id === id);
+                await fetch(`${API_URL}/tasks/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: task.status === 'completed' ? 'pending' : 'completed' })
+                });
+                loadTasks();
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        async function deleteTask(id) {
+            if (!confirm('Delete this task?')) return;
+            try {
+                await fetch(`${API_URL}/tasks/${id}`, { method: 'DELETE' });
+                loadTasks();
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        async function loadNotes() {
+            try {
+                const res = await fetch(`${API_URL}/notes`);
+                const notes = await res.json();
+                const notesList = document.getElementById('notesList');
+                const notesStats = document.getElementById('notesStats');
+                if (notes.length === 0) {
+                    notesList.innerHTML = '<div class="empty-state">No notes yet!</div>';
+                    notesStats.innerHTML = '';
+                    return;
+                }
+                notesList.innerHTML = notes.map(note => `
+                    <div class="item">
+                        <div class="item-content">
+                            <div class="item-title">${note.title}</div>
+                            <div class="item-meta">${note.content.substring(0, 50)}...</div>
+                        </div>
+                        <div class="item-actions">
+                            <button class="btn-small btn-delete" onclick="deleteNote('${note.id}')">🗑️ Delete</button>
+                        </div>
+                    </div>
+                `).join('');
+                notesStats.innerHTML = `<div class="stat"><div class="stat-number">${notes.length}</div><div class="stat-label">Total Notes</div></div>`;
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        async function addNote() {
+            const title = document.getElementById('noteTitle');
+            const content = document.getElementById('noteContent');
+            if (!title.value.trim()) return;
+            try {
+                await fetch(`${API_URL}/notes`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title: title.value, content: content.value })
+                });
+                title.value = '';
+                content.value = '';
+                loadNotes();
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        async function deleteNote(id) {
+            if (!confirm('Delete this note?')) return;
+            try {
+                await fetch(`${API_URL}/notes/${id}`, { method: 'DELETE' });
+                loadNotes();
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        async function loadEvents() {
+            try {
+                const res = await fetch(`${API_URL}/events`);
+                const events = await res.json();
+                const eventsList = document.getElementById('eventsList');
+                const eventsStats = document.getElementById('eventsStats');
+                if (events.length === 0) {
+                    eventsList.innerHTML = '<div class="empty-state">No events yet!</div>';
+                    eventsStats.innerHTML = '';
+                    return;
+                }
+                eventsList.innerHTML = events.map(event => `
+                    <div class="item">
+                        <div class="item-content">
+                            <div class="item-title">${event.title}</div>
+                            <div class="item-meta">📅 ${event.startDate}</div>
+                        </div>
+                        <div class="item-actions">
+                            <button class="btn-small btn-delete" onclick="deleteEvent('${event.id}')">🗑️ Delete</button>
+                        </div>
+                    </div>
+                `).join('');
+                eventsStats.innerHTML = `<div class="stat"><div class="stat-number">${events.length}</div><div class="stat-label">Total Events</div></div>`;
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        async function addEvent() {
+            const input = document.getElementById('eventInput');
+            if (!input.value.trim()) return;
+            try {
+                await fetch(`${API_URL}/events`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title: input.value })
+                });
+                input.value = '';
+                loadEvents();
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        async function deleteEvent(id) {
+            if (!confirm('Delete this event?')) return;
+            try {
+                await fetch(`${API_URL}/events/${id}`, { method: 'DELETE' });
+                loadEvents();
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        window.addEventListener('load', loadTasks);
+    </script>
+</body>
+</html>
